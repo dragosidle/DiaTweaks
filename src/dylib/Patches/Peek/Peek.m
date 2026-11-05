@@ -1,11 +1,19 @@
 #import "Patches/Peek/Peek.h"
+#import "Patches/AirTrafficControl/AirTrafficControl.h"
 
 static NSURL *DPPeekHovered;
 static __weak id DPPeekHoveredPage;
 
-static BOOL DPPeekWanted(NSInteger disposition) {
+// Air Traffic Control's to open instead: asked as it asks from the link's page, and from none, as the card's own
+// load reaches its hook.
+static BOOL DPPeekRouted(NSURL *url, id source) {
+    id from = [(NSObject *)source valueForKey:@"url"];
+    return DPDestination(url, [from isKindOfClass:NSURL.class] ? from : nil, NO) || DPDestination(url, nil, NO);
+}
+
+static BOOL DPPeekWanted(NSInteger disposition, NSURL *url, id source) {
     BOOL elsewhere = disposition == DPForegroundTab || disposition == DPBackgroundTab || disposition == DPPopup || disposition == DPNewWindow;
-    return DPPeek.on && elsewhere && (NSEvent.modifierFlags & NSEventModifierFlagShift);
+    return DPPeek.on && elsewhere && (NSEvent.modifierFlags & NSEventModifierFlagShift) && !DPPeekRouted(url, source);
 }
 
 static void DPPeekOpenLater(id delegate, id source, NSURL *url) {
@@ -15,7 +23,7 @@ static void DPPeekOpenLater(id delegate, id source, NSURL *url) {
 }
 
 static void DPWebContent_didCreate(id self, SEL _cmd, id webContents, id newWebContent, NSURL *url, NSInteger disposition) {
-    if (!DPPeekWanted(disposition) || !(DPPeekShows(webContents) || DPPeekCanOpen(webContents)))
+    if (!DPPeekWanted(disposition, url, webContents) || !(DPPeekShows(webContents) || DPPeekCanOpen(webContents)))
         return (void)DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, url, disposition);
     DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, url, (NSInteger)DPIgnoreAction);
     if (DPPeekShows(webContents)) return DPPeekLoad(webContents, url);
@@ -23,18 +31,20 @@ static void DPWebContent_didCreate(id self, SEL _cmd, id webContents, id newWebC
 }
 
 static NSInteger DPWebContent_decidePolicy(id self, SEL _cmd, id webContents, id action) {
-    if (!DPPeekWanted([[action valueForKey:@"navigationDisposition"] integerValue]))
+    NSURL *url = [action valueForKey:@"url"];
+    if (!DPPeekWanted([[action valueForKey:@"navigationDisposition"] integerValue], url, webContents))
         return DPCallOriginal(DPWebContent_decidePolicy, self, webContents, action);
     if (DPPeekShows(webContents)) return DPCurrentTab;
     if (!DPPeekCanOpen(webContents)) return DPCallOriginal(DPWebContent_decidePolicy, self, webContents, action);
-    DPPeekOpenLater(self, webContents, [action valueForKey:@"url"]);
+    DPPeekOpenLater(self, webContents, url);
     return DPIgnoreAction;
 }
 
 static void DPPeekLookAhead(void) {
     NSEventModifierFlags mods = NSEvent.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask & ~NSEventModifierFlagCapsLock;
     id page = DPPeekHoveredPage;
-    if (DPPeek.on && mods == NSEventModifierFlagShift && DPPeekHovered && page && !DPPeekShows(page) && DPPeekCanOpen(page))
+    if (DPPeek.on && mods == NSEventModifierFlagShift && DPPeekHovered && page && !DPPeekShows(page) && DPPeekCanOpen(page)
+        && !DPPeekRouted(DPPeekHovered, page))
         DPPeekWarm(NSApp.keyWindow, page, DPPeekHovered);
     else DPPeekCool();
 }
