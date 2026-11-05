@@ -1,7 +1,7 @@
 // Air Traffic Control: opens each routed site in the profile chosen for it, like Arc's, wherever the link comes from.
 #import "StdPatch/StdPatch.h"
 
-extern DPPatch DPAirTrafficControl;
+extern DPPatch DPAirTrafficControl, DPAirTrafficInsideDia;
 
 // Routes.m: saved in com.diapatches as airTrafficRoutes, [{domain, profile}], and airTrafficDefault, a profile ID or "" for
 // whichever profile is in front.

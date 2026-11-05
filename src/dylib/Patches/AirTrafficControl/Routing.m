@@ -37,6 +37,10 @@ NSString *DPDestination(NSURL *url, NSURL *from, BOOL external) {
         DPTrace(@"%@ stays: %@", url, DPAirTrafficControl.on ? @"fewer than two profiles found" : @"off");
         return nil;
     }
+    if (!external && !DPAirTrafficInsideDia.on) {
+        DPTrace(@"%@ stays: only links from other apps are routed", url);
+        return nil;
+    }
     NSString *profile = DPRoutedProfile(url);
     if (!profile && external) profile = DPDefaultProfile();
     if (!profile.length) {

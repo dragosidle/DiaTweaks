@@ -18,3 +18,14 @@ DP_PATCH(DPAirTrafficControl) {
     .apply = DPApplyAirTrafficControl,
     .verify = DPVerifyRouting,
 };
+
+// Off, only links from other apps are routed, as Arc does it. On, so are clicks in pages and addresses typed into a tab.
+DP_PATCH(DPAirTrafficInsideDia) {
+    .key = @"airTrafficInsideDia",
+    .defaultOn = YES,
+    .title = @"Route Links Inside Dia Too",
+    .detail = @"Also send a routed site to its profile when its link is clicked on a page or typed into a tab. "
+              @"Off, only links from other apps are routed.",
+    .requires = @"airTrafficControl",
+    .apply = DPApplyAirTrafficControl,
+};
