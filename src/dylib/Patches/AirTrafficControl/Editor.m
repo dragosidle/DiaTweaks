@@ -45,7 +45,6 @@ static NSView *DPRouteLabel(NSString *symbol, NSString *text) {
     [condition.menu addItemWithTitle:@"Contains" action:NULL keyEquivalent:@""].representedObject = DPMatchContains;
     [condition.menu addItemWithTitle:@"Is equal to" action:NULL keyEquivalent:@""].representedObject = DPMatchEquals;
     [condition selectItemAtIndex:[condition indexOfItemWithRepresentedObject:route[@"match"]]];
-    [condition.widthAnchor constraintEqualToConstant:150].active = YES;
     NSTextField *url = [NSTextField textFieldWithString:route[@"url"]];
     url.placeholderString = @"youtube.com";
     url.bezelStyle = NSTextFieldRoundedBezel;
@@ -95,7 +94,19 @@ static NSView *DPRouteLabel(NSString *symbol, NSString *text) {
     grid.rowSpacing = 8;
     grid.columnSpacing = 8;
     grid.rowAlignment = NSGridRowAlignmentFirstBaseline;
+    // Every column but the URL's has a set width and the URL's fills the rest, so there's one layout to find. Left to
+    // the grid, the room went to any column, and the profile menu came out as wide as the URL line only some of the time.
+    CGFloat labels = 0, buttons = 0;
+    for (NSUInteger row = 0; row < lines.count; row += 2) {
+        labels = MAX(labels, MAX(lines[row][0].fittingSize.width, lines[row + 1][0].fittingSize.width));
+        buttons = MAX(buttons, lines[row][3].fittingSize.width);
+    }
+    [grid columnAtIndex:0].width = ceil(labels);
+    [grid columnAtIndex:1].width = 150;
+    [grid columnAtIndex:3].width = ceil(buttons);
+    grid.xPlacement = NSGridCellPlacementFill;
     [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
+    [grid columnAtIndex:3].xPlacement = NSGridCellPlacementCenter;
     for (NSUInteger index = 0; index < routes.count; index++) {
         [[grid rowAtIndex:index * 2 + 1] mergeCellsInRange:NSMakeRange(1, 2)];  // The profile spans the condition and the URL.
         if (index) [grid rowAtIndex:index * 2].topPadding = 12;
