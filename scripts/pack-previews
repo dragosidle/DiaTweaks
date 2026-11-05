@@ -1,0 +1,12 @@
+#!/bin/sh
+# Packs the previews tweaks ship with into one file the dylib carries in its __DATA,__dp_previews section. Each is its file
+# name, a NUL, its size in bytes and a newline, then its bytes. Settings shows one when the wiki has no preview for a tweak.
+#     scripts/pack-previews build/previews.bin src/dylib/Patches/*/previews/*
+set -eu
+out=$1
+shift
+: >"$out"
+for file in "$@"; do
+    printf '%s\0%s\n' "$(basename "$file")" "$(wc -c <"$file" | tr -d ' ')" >>"$out"
+    cat "$file" >>"$out"
+done

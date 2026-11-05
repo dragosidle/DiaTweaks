@@ -1,6 +1,9 @@
 #import "Settings.h"
 #import <AVFoundation/AVFoundation.h>
 #import <VideoToolbox/VideoToolbox.h>
+#import <mach-o/getsect.h>
+
+extern const struct mach_header_64 __dso_handle;
 
 #ifndef DP_PREVIEWS
 #define DP_PREVIEWS "https://raw.githubusercontent.com/wiki/JaceThings/DiaTweaks/previews/"
@@ -35,18 +38,47 @@ static NSArray<NSString *> *DPPreviewNames(NSString *key) {
     return names;
 }
 
-// Calls `done` with the first of `names` the wiki has, cached, or nil if it has none or the download failed.
-static void DPFetchPreview(NSArray<NSString *> *names, void (^done)(NSURL *file, BOOL changed)) {
-    if (!names.count) return done(nil, NO);
+// The previews tweaks ship with, packed into the dylib by scripts/pack-previews: name, NUL, size, newline, bytes.
+static NSData *DPShippedData(NSString *name) {
+    unsigned long size = 0;
+    const char *at = (const char *)getsectiondata(&__dso_handle, "__DATA", "__dp_previews", &size), *end = at + size;
+    while (at && at < end) {
+        const char *nul = memchr(at, 0, end - at), *line = nul ? memchr(nul, '\n', end - nul) : NULL;
+        if (!line) break;
+        long long length = strtoll(nul + 1, NULL, 10);
+        if (length < 0 || length > end - line - 1) break;
+        if ([[[NSString alloc] initWithBytes:at length:nul - at encoding:NSUTF8StringEncoding] isEqual:name])
+            return [NSData dataWithBytesNoCopy:(void *)(line + 1) length:length freeWhenDone:NO];
+        at = line + 1 + length;
+    }
+    return nil;
+}
+
+// The first of `names` a tweak ships with, written to the cache for the player, which wants a file.
+static NSURL *DPShippedPreview(NSArray<NSString *> *names) {
+    for (NSString *name in names) {
+        NSData *data = DPShippedData(name);
+        if (!data) continue;
+        NSURL *file = DPCachedPreview([@"shipped-" stringByAppendingString:name]);
+        if (![[NSData dataWithContentsOfURL:file] isEqualToData:data]) [data writeToURL:file atomically:YES];
+        return file;
+    }
+    return nil;
+}
+
+// Calls `done` with the first of `names` the wiki has, cached. Without one, or without the wiki, a preview the tweak ships
+// with stands in, or nil.
+static void DPFetchFrom(NSArray<NSString *> *names, NSArray<NSString *> *all, void (^done)(NSURL *file, BOOL changed)) {
+    if (!names.count) return done(DPShippedPreview(all), NO);
     NSURL *cached = DPCachedPreview(names[0]);
     NSURL *url = [NSURL URLWithString:[@DP_PREVIEWS stringByAppendingString:names[0]]];
     [[NSURLSession.sharedSession dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         NSInteger status = [(NSHTTPURLResponse *)response statusCode];
         dispatch_async(dispatch_get_main_queue(), ^{
-            if (error || (status != 200 && status != 404)) return done(nil, NO);
+            if (error || (status != 200 && status != 404)) return done(DPShippedPreview(all), NO);
             if (status == 404) {
                 [NSFileManager.defaultManager removeItemAtURL:cached error:nil];
-                return DPFetchPreview([names subarrayWithRange:NSMakeRange(1, names.count - 1)], done);
+                return DPFetchFrom([names subarrayWithRange:NSMakeRange(1, names.count - 1)], all, done);
             }
             BOOL changed = ![[NSData dataWithContentsOfURL:cached] isEqualToData:data];
             if (changed) [data writeToURL:cached atomically:YES];
@@ -54,6 +86,8 @@ static void DPFetchPreview(NSArray<NSString *> *names, void (^done)(NSURL *file,
         });
     }] resume];
 }
+
+static void DPFetchPreview(NSArray<NSString *> *names, void (^done)(NSURL *file, BOOL changed)) { DPFetchFrom(names, names, done); }
 
 @implementation DPPreviewView {
     NSString *_key, *_layout;
