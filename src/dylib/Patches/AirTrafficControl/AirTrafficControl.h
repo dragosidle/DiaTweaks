@@ -18,9 +18,13 @@ NSString *DPWindowProfile(NSWindow *window);  // The profile a browser window sh
 NSWindow *DPWindowOnProfile(NSString *profileID);
 void DPSwitchToProfile(NSWindow *window, NSString *profileID, void (^done)(BOOL switched));
 
-// Routing.m: the hooks that catch links, and where they go.
+// Routing.m: where a link goes, and how it gets there.
 BOOL DPRoutingReady(void);  // On, with at least two profiles to route between.
+NSString *DPDestination(NSURL *url, NSURL *from, BOOL external);  // The profile to open `url` in, or nil to leave it to Dia.
 void DPOpenInProfile(NSURL *url, NSString *profileID);
+void DPTrace(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);  // Logs with the developer tools on: log stream --predicate 'eventMessage CONTAINS "DiaPatches ATC"'
+
+// Hooks.m: the hooks that catch links wherever they come from.
 void DPInstallRouting(void);
 NSString *DPVerifyRouting(DPPatch *patch);
 
