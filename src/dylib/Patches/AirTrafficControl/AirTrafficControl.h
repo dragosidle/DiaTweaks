@@ -12,11 +12,19 @@ void DPSetDefaultProfile(NSString *profileID);
 NSString *DPRouteDomain(NSString *text);  // What was typed, as a host: "https://www.Example.com/x" is "example.com".
 NSString *DPRoutedProfile(NSURL *url);    // The profile a route sends `url` to, or nil. A route covers its subdomains.
 
+@interface NSObject (DPAirSwiftFields)
+- (id)safeSwiftValueForKey:(NSString *)key;  // AXCoreUtilities: reads Swift properties the Obj-C runtime hides.
+@end
+
 // Profiles.m: Dia's profiles, read from the switcher in each window, the sidebar's or the dots in the tab strip.
 NSArray<NSDictionary *> *DPProfiles(void);    // {id, name}, left to right.
+NSString *DPProfileName(NSString *profileID);
+NSView *DPSwitcherIn(NSWindow *window);
+NSDictionary *DPSwitcherItems(NSView *switcher);  // Swift SpaceID → the item view for it.
 NSString *DPWindowProfile(NSWindow *window);  // The profile a browser window shows, or nil for any other window.
 NSWindow *DPWindowOnProfile(NSString *profileID);
-void DPSwitchToProfile(NSWindow *window, NSString *profileID, void (^done)(BOOL switched));
+
+void DPSwitchToProfile(NSWindow *window, NSString *profileID, void (^done)(BOOL switched));  // Switch.m
 
 // Routing.m: where a link goes, and how it gets there.
 BOOL DPRoutingReady(void);  // On, with at least two profiles to route between.
