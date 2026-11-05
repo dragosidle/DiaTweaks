@@ -7,6 +7,7 @@
 enum { DPIgnoreAction = 0 };  // ArcWebContentsNavigationDisposition
 
 static NSMapTable *DPPageByNavigation;  // A page's navigation controller → the page, for the tab a typed address was meant for.
+static NSHashTable *DPLetThrough;       // Navigation controllers whose next load isn't routed (DPLetLoadThrough).
 
 static void DPApp_openURLs(id self, SEL _cmd, NSApplication *app, NSArray<NSURL *> *urls) {
     DPTrace(@"from outside: %@", urls);
@@ -56,9 +57,15 @@ static void DPWebContent_didCreate(id self, SEL _cmd, id webContents, id newWebC
 // tab Dia made for it, still a blank new tab, closes once that's under way. A tab already on a page keeps it.
 static id DPNavigation_load(id self, SEL _cmd, NSURL *url, NSURL *origin) {
     DPTrace(@"load %@ from %@", url, origin);
-    NSString *profile = DPDestination(url, nil, NO);
     id page = [DPPageByNavigation objectForKey:self];
     NSURL *current = DPPageURL(page);
+    if ([DPLetThrough containsObject:self]) {
+        [DPLetThrough removeObject:self];
+        DPTrace(@"%@ let through: Peek's own load", url);
+        DPNoteLoad(page, url, current);
+        return DPCallOriginal(DPNavigation_load, self, url, origin);
+    }
+    NSString *profile = DPDestination(url, nil, NO);
     if (!profile) {
         DPNoteLoad(page, url, current);
         return DPCallOriginal(DPNavigation_load, self, url, origin);
@@ -80,6 +87,18 @@ static void DPHookNavigation(id webContents) {
     if (!DPPageByNavigation) DPPageByNavigation = [NSMapTable weakToWeakObjectsMapTable];
     [DPPageByNavigation setObject:webContents forKey:navigation];
     DPHookClass(object_getClass(navigation), @selector(load:initiatorOrigin:), (IMP)DPNavigation_load);
+}
+
+// One load only: the page's later loads are routed as usual. The mark is weak, so it goes with the controller.
+void DPLetLoadThrough(id page) {
+    if (!page) return;
+    DPHookNavigation(page);
+    id navigation = nil;
+    @try { navigation = [page valueForKey:@"navigationController"]; } @catch (NSException *e) {}
+    if (!navigation) return;
+    if (!DPLetThrough) DPLetThrough = [NSHashTable weakObjectsHashTable];
+    [DPLetThrough addObject:navigation];
+    DPTrace(@"the next load into %@ goes through unrouted", page);
 }
 
 static id DPBrowser_createWebContents(id self, SEL _cmd, id params) {

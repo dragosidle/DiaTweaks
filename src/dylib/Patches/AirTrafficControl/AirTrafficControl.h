@@ -37,6 +37,7 @@ void DPTrace(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);  // Logs with the 
 // Hooks.m: the hooks that catch links wherever they come from.
 void DPInstallRouting(void);
 NSString *DPVerifyRouting(DPPatch *patch);
+void DPLetLoadThrough(id page);  // The next load into `page` isn't routed: Peek chose its profile already.
 
 // Redirects.m: a load that's redirected to a routed site, caught when the page commits to it.
 void DPInstallRedirects(void);
