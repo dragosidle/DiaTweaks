@@ -93,16 +93,24 @@ static id DPPeekFactoryFor(id source, NSWindow *window) {
 
 BOOL DPPeekCanOpen(id source) { return DPPeekFactoryFor(source, NSApp.keyWindow) != nil; }
 
-BOOL DPPeekShows(id page) {
-    if (!page) return NO;
-    for (NSWindow *window in NSApp.windows) if (DPPeekCardIn(window).page == page) return YES;
-    return NO;
+DPPeekCard *DPPeekCardShowing(id page) {
+    if (!page) return nil;
+    for (NSWindow *window in NSApp.windows) {
+        DPPeekCard *peek = DPPeekCardIn(window);
+        if (peek.page == page) return peek;
+    }
+    return nil;
 }
 
+BOOL DPPeekShows(id page) { return DPPeekCardShowing(page) != nil; }
+
+// Peek has chosen where the page belongs, so Air Traffic Control's load hook lets this one by.
 void DPPeekLoad(id page, NSURL *url) {
     id navigation = [(NSObject *)page valueForKey:@"navigationController"];
     SEL load = @selector(load:initiatorOrigin:);
-    if (url && [navigation respondsToSelector:load]) ((id (*)(id, SEL, NSURL *, NSURL *))objc_msgSend)(navigation, load, url, nil);
+    if (!url || ![navigation respondsToSelector:load]) return;
+    DPLetLoadThrough(page);
+    ((id (*)(id, SEL, NSURL *, NSURL *))objc_msgSend)(navigation, load, url, nil);
 }
 
 static BOOL DPPeekGivingNow;
@@ -165,8 +173,9 @@ static void DPPeekFindLink(NSWindow *window, id source, NSPoint origin, NSView *
     ((void (*)(id, SEL, NSString *, id))objc_msgSend)(source, @selector(executeJavascript:completion:), script, answer);
 }
 
-static id DPPeekMakePage(NSWindow *window, id source, void (^attach)(id page)) {
-    id factory = DPPeekFactoryFor(source, window);
+// In `profile`'s own browser when the link is routed there, so the page uses that profile's cookies, else where `source` is.
+static id DPPeekMakePage(NSWindow *window, id source, NSString *profile, void (^attach)(id page)) {
+    id factory = profile ? DPPeekBrowserFor(window, profile) : DPPeekFactoryFor(source, window);
     Class configuration = objc_getClass(DPDiaWebContentsConfiguration);
     if (!window || !factory || !configuration) return nil;
     id page = ((id (*)(id, SEL, id))objc_msgSend)(factory, @selector(createWebContents:), [configuration new]);
@@ -181,7 +190,7 @@ void DPPeekWarm(NSWindow *window, id source, NSURL *url) {
     if ([url isEqual:DPPeekWarmURL] || DPPeekCardIn(window)) return;
     DPPeekCool();
     __block NSView *host = nil;
-    id page = DPPeekMakePage(window, source, ^(id page) { host = DPPeekWarmHost(window, page); });
+    id page = DPPeekMakePage(window, source, nil, ^(id page) { host = DPPeekWarmHost(window, page); });
     if (!page) return;
     if (!host) return DPPeekDiscard(page, nil);
     DPPeekLoad(page, url);
@@ -202,16 +211,24 @@ void DPPeekCool(void) {
     DPPeekForgetWarm();
 }
 
-static void DPPeekOpenFrom(NSWindow *window, NSURL *url, NSRect link, id delegate, id source, id warmPage, NSView *warmHost) {
+static void DPPeekOpenFrom(NSWindow *window, NSURL *url, NSRect link, id delegate, id source, NSString *profile, id warmPage, NSView *warmHost) {
     if (!window || !url || DPPeekCardIn(window)) {
         if (warmPage) DPPeekDiscard(warmPage, warmHost);
         return;
     }
     __block DPPeekCard *peek = nil;
-    id page = warmPage ?: DPPeekMakePage(window, source, ^(id page) { peek = DPPeekShowCard(window, page, nil, link, nil); });
-    if (!page) return;
-    if (warmPage) peek = DPPeekShowCard(window, page, warmHost, link, nil);
+    id page = warmPage ?: DPPeekMakePage(window, source, profile, ^(id page) { peek = DPPeekShowCard(window, page, nil, link, profile); });
+    if (!page) {
+        if (profile) DPOpenInProfile(url, profile);  // Its browser is gone, so Air Traffic Control opens it.
+        return;
+    }
+    if (warmPage) peek = DPPeekShowCard(window, page, warmHost, link, profile);
     else DPPeekLoad(page, url);
+    if (!peek && profile) {
+        // The profile's page can't become one of this profile's tabs.
+        DPPeekDiscard(page, warmHost);
+        return DPOpenInProfile(url, profile);
+    }
     if (!peek) {
         DPPeekDetach(page, warmHost);
         DPPeekGive(page, delegate, source, url, DPPeekTab);
@@ -222,21 +239,30 @@ static void DPPeekOpenFrom(NSWindow *window, NSURL *url, NSRect link, id delegat
     DPPeekShowTabBadge(peek, source);
 }
 
-void DPPeekOpen(NSWindow *window, NSURL *url, NSPoint origin, id delegate, id source) {
+void DPPeekOpen(NSWindow *window, NSURL *url, NSPoint origin, id delegate, id source, NSString *profile) {
     // Taken now, before releasing Shift can cool it.
     BOOL warm = DPPeekWarmPage && [url isEqual:DPPeekWarmURL] && DPPeekWarmView.window == window;
     id warmPage = warm ? DPPeekWarmPage : nil;
     NSView *warmHost = warm ? DPPeekWarmView : nil;
     if (warm) DPPeekForgetWarm();
     DPPeekCool();
-    DPPeekFindLink(window, source, origin, warmHost, ^(NSRect link) { DPPeekOpenFrom(window, url, link, delegate, source, warmPage, warmHost); });
+    DPPeekFindLink(window, source, origin, warmHost, ^(NSRect link) { DPPeekOpenFrom(window, url, link, delegate, source, profile, warmPage, warmHost); });
 }
 
 @implementation DPPeekCard (Handoff)
 
 - (void)finish:(DPPeekExit)exit {
     NSObject *page = (NSObject *)self.page;
+    NSString *profile = self.profile;
     [self.window makeKeyWindow];
+    if (exit != DPPeekClose && profile) {
+        // Another profile's page can't join this one's tabs, so it closes and Air Traffic Control opens its address there.
+        NSURL *url = [page valueForKey:@"url"];
+        [self handOver];
+        [page performSelector:@selector(close)];
+        if ([url isKindOfClass:NSURL.class]) DPOpenInProfile(url, profile);
+        return;
+    }
     if (exit != DPPeekClose && DPPeekGive(page, self.sourceDelegate, self.source, [page valueForKey:@"url"], exit)) {
         // DPPage_attach takes the card down once Dia shows the page.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{ if (self.superview) [self handOver]; });

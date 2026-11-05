@@ -4,46 +4,59 @@
 static NSURL *DPPeekHovered;
 static __weak id DPPeekHoveredPage;
 
-// Air Traffic Control's to open instead: asked as it asks from the link's page, and from none, as the card's own
-// load reaches its hook.
-static BOOL DPPeekRouted(NSURL *url, id source) {
+// The profile Air Traffic Control opens `url` in instead, or nil: asked as it asks from the link's page, and from none,
+// as the card's own load reaches its hook.
+static NSString *DPPeekRouted(NSURL *url, id source) {
     id from = [(NSObject *)source valueForKey:@"url"];
-    return DPDestination(url, [from isKindOfClass:NSURL.class] ? from : nil, NO) || DPDestination(url, nil, NO);
+    return DPDestination(url, [from isKindOfClass:NSURL.class] ? from : nil, NO) ?: DPDestination(url, nil, NO);
 }
 
 // Shift-click peeks a link that would open elsewhere. With new-tab links on, a plain click peeks a link Dia opens in a
 // new tab itself (`fromDia`), while ⌘ still makes a tab, and a page the site opens, which keeps window.opener, stays Dia's.
-static BOOL DPPeekWanted(NSInteger disposition, BOOL fromDia, NSURL *url, id source) {
+// A link Air Traffic Control routes is peeked in that profile, named by `profile`, if the window has a browser for it,
+// and inside a card only if it's the card's own. Any other it routes itself.
+static BOOL DPPeekWanted(NSInteger disposition, BOOL fromDia, NSURL *url, id source, NSString **profile) {
+    *profile = nil;
     if (!DPPeek.on || DPPeekGiving()) return NO;
     NSEventModifierFlags mods = NSEvent.modifierFlags;
     BOOL command = mods & NSEventModifierFlagCommand, newTabs = DPPeekNewTabs(), wanted;
     BOOL elsewhere = disposition == DPForegroundTab || disposition == DPBackgroundTab || disposition == DPPopup || disposition == DPNewWindow;
     if (mods & NSEventModifierFlagShift) wanted = elsewhere && !(newTabs && command);
     else wanted = newTabs && fromDia && disposition == DPForegroundTab && !command;
-    return wanted && !DPPeekRouted(url, source);
+    if (!wanted) return NO;
+    NSString *routed = DPPeekRouted(url, source);
+    if (!routed) return YES;
+    DPPeekCard *card = DPPeekCardShowing(source);
+    BOOL ours = card ? [routed isEqualToString:card.profile] : DPPeekBrowserFor(NSApp.keyWindow, routed) != nil;
+    if (ours) *profile = routed;
+    return ours;
 }
 
-static void DPPeekOpenLater(id delegate, id source, NSURL *url) {
+static void DPPeekOpenLater(id delegate, id source, NSURL *url, NSString *profile) {
     NSWindow *window = NSApp.keyWindow;
     NSPoint origin = NSEvent.mouseLocation;
-    dispatch_async(dispatch_get_main_queue(), ^{ DPPeekOpen(window, url, origin, delegate, source); });
+    dispatch_async(dispatch_get_main_queue(), ^{ DPPeekOpen(window, url, origin, delegate, source, profile); });
 }
 
 static void DPWebContent_didCreate(id self, SEL _cmd, id webContents, id newWebContent, NSURL *url, NSInteger disposition) {
-    if (!DPPeekWanted(disposition, NO, url, webContents) || !(DPPeekShows(webContents) || DPPeekCanOpen(webContents)))
+    NSString *profile = nil;
+    if (!DPPeekWanted(disposition, NO, url, webContents, &profile) || !(DPPeekShows(webContents) || DPPeekCanOpen(webContents)))
         return (void)DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, url, disposition);
-    DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, url, (NSInteger)DPIgnoreAction);
+    // Air Traffic Control's hook sits below this one and would route a routed address too, so Dia is handed a blank one.
+    NSURL *ignored = profile ? [NSURL URLWithString:@"about:blank"] : url;
+    DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, ignored, (NSInteger)DPIgnoreAction);
     if (DPPeekShows(webContents)) return DPPeekLoad(webContents, url);
-    DPPeekOpenLater(self, webContents, url);
+    DPPeekOpenLater(self, webContents, url, profile);
 }
 
 static NSInteger DPWebContent_decidePolicy(id self, SEL _cmd, id webContents, id action) {
     NSURL *url = [action valueForKey:@"url"];
-    if (!DPPeekWanted([[action valueForKey:@"navigationDisposition"] integerValue], YES, url, webContents))
+    NSString *profile = nil;
+    if (!DPPeekWanted([[action valueForKey:@"navigationDisposition"] integerValue], YES, url, webContents, &profile))
         return DPCallOriginal(DPWebContent_decidePolicy, self, webContents, action);
     if (DPPeekShows(webContents)) return DPCurrentTab;
     if (!DPPeekCanOpen(webContents)) return DPCallOriginal(DPWebContent_decidePolicy, self, webContents, action);
-    DPPeekOpenLater(self, webContents, url);
+    DPPeekOpenLater(self, webContents, url, profile);
     return DPIgnoreAction;
 }
 

@@ -60,8 +60,9 @@ void DPPeekInstallPages(void);
 id DPPeekBrowserFor(NSWindow *window, NSString *profileID);  // The window's browser for an Air Traffic Control profile, or nil if it can't tell which.
 BOOL DPPeekCanOpen(id source);
 BOOL DPPeekShows(id page);
+DPPeekCard *DPPeekCardShowing(id page);  // The card showing `page`, or nil.
 BOOL DPPeekGiving(void);  // Peek is handing its page to Dia, through the hook that catches new tabs.
 void DPPeekLoad(id page, NSURL *url);
-void DPPeekOpen(NSWindow *window, NSURL *url, NSPoint origin, id delegate, id source);
+void DPPeekOpen(NSWindow *window, NSURL *url, NSPoint origin, id delegate, id source, NSString *profile);  // profile: nil, or the one the link routes to.
 void DPPeekWarm(NSWindow *window, id source, NSURL *url);
 void DPPeekCool(void);
