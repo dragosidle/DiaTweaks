@@ -2,5 +2,6 @@
 #import "StdPatch/StdPatch.h"
 
 void DPInstallDevTools(void);
-NSString *DPDescribeViews(NSView *root);
-void DPTraceLayoutLoops(void);  // Writes what keeps a window's layout dirty to layout-loops.txt beside the dylib.  // One line per view: class, frame, label, rounded corners, and whether it's hidden.
+NSString *DPDescribeViews(NSView *root);  // One line per view: class, frame, label, rounded corners, and whether it's hidden.
+void DPTraceLayoutLoops(void);            // Writes what keeps a window's layout dirty to layout-loops.txt beside the dylib.
+void DPListenForProbes(void);             // Probe.m: writes classes, Swift fields and the menus to probe.txt for scripts/probe.

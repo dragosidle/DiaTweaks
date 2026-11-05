@@ -1,0 +1,16 @@
+#!/bin/sh
+# Asks a running Dia, with the developer tools on, what its objects look like, and prints the answer:
+#     scripts/probe ArcBrowser app _TtC10TabSidebar17SpaceSwitcherView.itemViews
+# Each argument is a class, `app` for the app delegate's class, or a class and Swift fields to read from its first view
+# on screen. See src/dylib/DevTools/Probe.m for what comes back.
+set -eu
+[ $# -gt 0 ] || { echo "usage: scripts/probe CLASS|app|CLASS.field.field ..." >&2; exit 2; }
+support="${DIAPATCH_HOME:-$HOME/Library/Application Support/DiaPatches}"
+out="$support/probe.txt"
+rm -f "$out"
+spec=$(IFS=,; printf '%s' "$*")
+osascript -l JavaScript -e 'function run(argv) { ObjC.import("Foundation");
+    $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObjectUserInfoDeliverImmediately("com.diapatches.dev.probe", argv[0], $(), true); }' "$spec"
+for _ in $(seq 40); do [ -f "$out" ] && break; sleep 0.25; done
+[ -f "$out" ] || { echo "Dia didn't answer. Are the developer tools on? (defaults write com.diapatches devTools -bool YES, then relaunch Dia)" >&2; exit 1; }
+cat "$out"

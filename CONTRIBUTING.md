@@ -25,7 +25,7 @@ Each patch is one folder in `src/dylib/Patches/`, built on StdPatch: `src/dylib/
 - Give it a `.verify` that looks at Dia's views and returns `nil` when they match `on`, or a few words saying what's wrong. Find the views with `DPFindViews`, not through your own hooks, so a hook that never ran shows up as a failure.
 - Keep files to about 100 lines. Split a big patch into several files in its folder.
 
-With the developer tools on, a script can also drive Dia: post the distributed notification `com.diapatches.dev.set` with the object `hideToolbar=1` to flip a switch, or `com.diapatches.dev.dump` to write every window's view tree to `~/Library/Application Support/DiaPatches/views.txt`.
+With the developer tools on, a script can also drive Dia: post the distributed notification `com.diapatches.dev.set` with the object `hideToolbar=1` to flip a switch, or `com.diapatches.dev.dump` to write every window's view tree to `~/Library/Application Support/DiaPatches/views.txt`. `scripts/probe ArcBrowser app _TtC10TabSidebar17SpaceSwitcherView.itemViews` prints a class's methods and fields, the app delegate's, or a Swift field read from a live view, and the menu bar's items with their actions.
 
 ## Documenting a patch
 
