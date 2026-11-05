@@ -1,5 +1,6 @@
 // The hooks that catch links: from other apps through the app delegate, from clicks in pages through Dia's navigation
 // policy, from links that open a new tab, and from addresses typed into a tab through its page's navigation controller.
+// Redirects are caught in Redirects.m.
 #import "Patches/AirTrafficControl/AirTrafficControl.h"
 #import <objc/message.h>
 
@@ -13,7 +14,10 @@ static void DPApp_openURLs(id self, SEL _cmd, NSApplication *app, NSArray<NSURL 
     for (NSURL *url in urls) {
         NSString *profile = DPDestination(url, nil, YES);
         if (profile) DPOpenInProfile(url, profile);
-        else [rest addObject:url];
+        else {
+            [rest addObject:url];
+            DPNoteFromOutside(url);  // Dia opens it here, but where it redirects to may be routed.
+        }
     }
     if (rest.count) DPCallOriginal(DPApp_openURLs, self, app, rest);
 }
@@ -28,7 +32,10 @@ static NSInteger DPWebContent_decidePolicy(id self, SEL _cmd, id webContents, id
     NSURL *url = [action valueForKey:@"url"];
     DPTrace(@"navigation %@ disposition %@ on %@", url, [action valueForKey:@"navigationDisposition"], DPPageURL(webContents));
     NSString *profile = DPDestination(url, DPPageURL(webContents), NO);
-    if (!profile) return DPCallOriginal(DPWebContent_decidePolicy, self, webContents, action);
+    if (!profile) {
+        DPNoteLoad(webContents, url, DPPageURL(webContents));
+        return DPCallOriginal(DPWebContent_decidePolicy, self, webContents, action);
+    }
     dispatch_async(dispatch_get_main_queue(), ^{ DPOpenInProfile(url, profile); });
     return DPIgnoreAction;
 }
@@ -37,7 +44,10 @@ static NSInteger DPWebContent_decidePolicy(id self, SEL _cmd, id webContents, id
 static void DPWebContent_didCreate(id self, SEL _cmd, id webContents, id newWebContent, NSURL *url, NSInteger disposition) {
     DPTrace(@"new page for %@ disposition %ld on %@", url, (long)disposition, DPPageURL(webContents));
     NSString *profile = DPDestination(url, DPPageURL(webContents), NO);
-    if (!profile) return (void)DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, url, disposition);
+    if (!profile) {
+        DPNoteLoad(newWebContent, url, nil);
+        return (void)DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, url, disposition);
+    }
     DPCallOriginal(DPWebContent_didCreate, self, webContents, newWebContent, url, (NSInteger)DPIgnoreAction);
     dispatch_async(dispatch_get_main_queue(), ^{ DPOpenInProfile(url, profile); });
 }
@@ -47,9 +57,12 @@ static void DPWebContent_didCreate(id self, SEL _cmd, id webContents, id newWebC
 static id DPNavigation_load(id self, SEL _cmd, NSURL *url, NSURL *origin) {
     DPTrace(@"load %@ from %@", url, origin);
     NSString *profile = DPDestination(url, nil, NO);
-    if (!profile) return DPCallOriginal(DPNavigation_load, self, url, origin);
     id page = [DPPageByNavigation objectForKey:self];
     NSURL *current = DPPageURL(page);
+    if (!profile) {
+        DPNoteLoad(page, url, current);
+        return DPCallOriginal(DPNavigation_load, self, url, origin);
+    }
     dispatch_async(dispatch_get_main_queue(), ^{ DPOpenInProfile(url, profile); });
     if (page && (!current || [current.scheme isEqualToString:@"dia"]) && [page respondsToSelector:@selector(close)])
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -93,6 +106,7 @@ void DPInstallRouting(void) {
         DPTrace(@"%s %@", DPDiaWebContent, objc_getClass(DPDiaWebContent) ? @"found" : @"missing, so clicks in pages aren't seen");
         DPHook(DPDiaWebContent, @selector(webContents:decidePolicyForNavigationAction:), (IMP)DPWebContent_decidePolicy);
         DPHook(DPDiaWebContent, @selector(webContents:didCreateNewWebContent:targetURL:disposition:), (IMP)DPWebContent_didCreate);
+        DPInstallRedirects();
     });
 }
 

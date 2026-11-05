@@ -39,6 +39,11 @@ void DPTrace(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);  // Logs with the 
 void DPInstallRouting(void);
 NSString *DPVerifyRouting(DPPatch *patch);
 
+// Redirects.m: a load that's redirected to a routed site, caught when the page commits to it.
+void DPInstallRedirects(void);
+void DPNoteFromOutside(NSURL *url);  // A link from another app, so its redirect routes like the link would.
+void DPNoteLoad(id page, NSURL *url, NSURL *before);  // A load let through, from `before` (nil for a new tab), to watch.
+
 // Picker.m: the pieces of its Settings page, and the page's rows: the Routes group (Editor.m) and the Default group.
 NSTextField *DPNote(NSString *text);
 NSPopUpButton *DPProfilePicker(NSString *first, NSString *chosen, id target, SEL action);  // The profiles, after `first` if given.
