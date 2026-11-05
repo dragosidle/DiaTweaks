@@ -18,6 +18,10 @@ void DPTrace(NSString *format, ...) {
     os_log(OS_LOG_DEFAULT, "DiaPatches ATC: %{public}@", line);
 }
 
+void DPForgetOld(NSMutableDictionary<NSString *, NSDate *> *times, NSTimeInterval seconds) {
+    for (NSString *key in times.allKeys) if (-times[key].timeIntervalSinceNow >= seconds) [times removeObjectForKey:key];
+}
+
 BOOL DPRoutingReady(void) { return DPAirTrafficControl.on && DPProfiles().count >= 2; }
 
 static BOOL DPProfileExists(NSString *profileID) {
@@ -25,7 +29,7 @@ static BOOL DPProfileExists(NSString *profileID) {
     return NO;
 }
 
-BOOL DPWasHandedOver(NSURL *url) {
+static BOOL DPWasHandedOver(NSURL *url) {
     NSDate *when = DPHandedOver[url.absoluteString ?: @""];
     return when && -when.timeIntervalSinceNow < DPHandOverSeconds;
 }
@@ -67,6 +71,7 @@ NSString *DPDestination(NSURL *url, NSURL *from, BOOL external) {
 
 // Dia opens links from other apps in the front window's profile, so once a window shows the right one, the link takes that road.
 static void DPHandOver(NSURL *url) {
+    DPForgetOld(DPHandedOver, DPHandOverSeconds);
     DPHandedOver[url.absoluteString ?: @""] = NSDate.date;
     SEL open = @selector(application:openURLs:);
     if ([NSApp.delegate respondsToSelector:open]) ((void (*)(id, SEL, id, NSArray *))objc_msgSend)(NSApp.delegate, open, NSApp, @[ url ]);

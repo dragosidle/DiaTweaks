@@ -19,9 +19,7 @@ NSString *DPRoutedProfile(NSURL *url);  // The profile the first matching route 
 
 // Profiles.m: Dia's profiles, read from the switcher in each window, the sidebar's or the dots in the tab strip.
 NSArray<NSDictionary *> *DPProfiles(void);    // {id, name}, left to right.
-NSString *DPProfileName(NSString *profileID);
-NSMenu *DPProfileMenu(void);                    // The Window menu's list of profiles, ⌃1, ⌃2…, in either tab layout.
-NSMenuItem *DPProfileMenuItem(NSUInteger index);  // The item for the profile at `index` in DPProfiles().
+NSMenuItem *DPProfileMenuItem(NSUInteger index);  // The Window menu's item for the profile at `index` in DPProfiles().
 NSView *DPSwitcherIn(NSWindow *window);
 NSDictionary *DPSwitcherItems(NSView *switcher);  // Swift SpaceID → the item view for it.
 NSString *DPWindowProfile(NSWindow *window);  // The profile a browser window shows, or nil for any other window.
@@ -33,6 +31,7 @@ void DPSwitchToProfile(NSWindow *window, NSString *profileID, void (^done)(BOOL 
 BOOL DPRoutingReady(void);  // On, with at least two profiles to route between.
 NSString *DPDestination(NSURL *url, NSURL *from, BOOL external);  // The profile to open `url` in, or nil to leave it to Dia.
 void DPOpenInProfile(NSURL *url, NSString *profileID);
+void DPForgetOld(NSMutableDictionary<NSString *, NSDate *> *times, NSTimeInterval seconds);  // Drops times that long ago.
 void DPTrace(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);  // Logs with the developer tools on: log stream --predicate 'eventMessage CONTAINS "DiaPatches ATC"'
 
 // Hooks.m: the hooks that catch links wherever they come from.

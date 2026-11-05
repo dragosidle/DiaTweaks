@@ -16,7 +16,7 @@ NSDictionary *DPSwitcherItems(NSView *switcher) {
 
 // Dia's menu bar lists every profile, in the switcher's order, in a submenu of the Window menu (titled after the front
 // profile, with Manage Profiles… under them): Dragos ⌃1, Work ⌃2, … The last one also answers to ⌃9.
-NSMenu *DPProfileMenu(void) {
+static NSMenu *DPProfileMenu(void) {
     for (NSMenuItem *top in NSApp.mainMenu.itemArray)
         for (NSMenuItem *item in top.submenu.itemArray) {
             NSMenu *menu = item.submenu;
@@ -56,11 +56,6 @@ NSArray<NSDictionary *> *DPProfiles(void) {
         return profiles;
     }
     return @[];
-}
-
-NSString *DPProfileName(NSString *profileID) {
-    for (NSDictionary *profile in DPProfiles()) if ([profile[@"id"] isEqualToString:profileID]) return profile[@"name"];
-    return nil;
 }
 
 // Dia titles a browser window "Profile: Page", which also says which profile it shows.

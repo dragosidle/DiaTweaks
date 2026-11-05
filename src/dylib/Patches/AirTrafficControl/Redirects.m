@@ -8,6 +8,7 @@ static NSMutableDictionary<NSString *, NSDate *> *DPFromOutside;  // URLs from o
 
 void DPNoteFromOutside(NSURL *url) {
     if (!DPFromOutside) DPFromOutside = [NSMutableDictionary new];
+    DPForgetOld(DPFromOutside, 30);
     DPFromOutside[url.absoluteString ?: @""] = NSDate.date;
 }
 
