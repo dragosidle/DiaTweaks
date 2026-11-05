@@ -1,12 +1,29 @@
-// The Routes group on the Settings page: a New Route button and a row per route, saved as they change.
+// The Routes group on the Settings page, laid out like Arc's: a New Route button, then for each route a URL line (its
+// condition, the URL and a remove button) and an Open in line with the profile. Saved as they change.
 #import "Patches/AirTrafficControl/AirTrafficControl.h"
 
-@implementation DPRoutesView
+// A label like Arc's: a symbol and a word, grey, right-aligned against the controls.
+static NSView *DPRouteLabel(NSString *symbol, NSString *text) {
+    NSImageView *icon = [NSImageView imageViewWithImage:[NSImage imageWithSystemSymbolName:symbol accessibilityDescription:nil]];
+    icon.contentTintColor = NSColor.secondaryLabelColor;
+    icon.symbolConfiguration = [NSImageSymbolConfiguration configurationWithPointSize:13 weight:NSFontWeightRegular];
+    NSTextField *label = [NSTextField labelWithString:text];
+    label.font = [NSFont systemFontOfSize:13];
+    label.textColor = NSColor.secondaryLabelColor;
+    NSStackView *stack = [NSStackView stackViewWithViews:@[ icon, label ]];
+    stack.spacing = 5;
+    return stack;
+}
+
+@implementation DPRoutesView {
+    NSMutableArray<NSTextField *> *_fields;
+}
+
 - (instancetype)init {
     if (!(self = [super initWithFrame:NSZeroRect])) return nil;
     self.orientation = NSUserInterfaceLayoutOrientationVertical;
     self.alignment = NSLayoutAttributeLeading;
-    self.spacing = 8;
+    self.spacing = 16;
     self.identifier = @"Routes";
     [self reload];
     return self;
@@ -22,27 +39,34 @@
     [row.widthAnchor constraintEqualToAnchor:self.widthAnchor].active = YES;
 }
 
-- (NSView *)rowForRoute:(NSDictionary *)route at:(NSUInteger)index {
-    NSTextField *domain = [NSTextField textFieldWithString:route[@"domain"]];
-    domain.placeholderString = @"example.com";
-    domain.controlSize = NSControlSizeSmall;
-    domain.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
-    domain.delegate = self;
-    domain.tag = index;
-    domain.enabled = DPAirTrafficControl.on;
-    [domain.widthAnchor constraintEqualToConstant:180].active = YES;
-    NSPopUpButton *picker = DPProfilePicker(nil, route[@"profile"], self, @selector(pick:));
-    picker.tag = index;
+- (NSArray<NSArray<NSView *> *> *)linesForRoute:(NSDictionary *)route at:(NSUInteger)index {
+    BOOL on = DPAirTrafficControl.on;
+    NSPopUpButton *condition = [NSPopUpButton new];
+    [condition.menu addItemWithTitle:@"Contains" action:NULL keyEquivalent:@""].representedObject = DPMatchContains;
+    [condition.menu addItemWithTitle:@"Is equal to" action:NULL keyEquivalent:@""].representedObject = DPMatchEquals;
+    [condition selectItemAtIndex:[condition indexOfItemWithRepresentedObject:route[@"match"]]];
+    [condition.widthAnchor constraintEqualToConstant:150].active = YES;
+    NSTextField *url = [NSTextField textFieldWithString:route[@"url"]];
+    url.placeholderString = @"youtube.com";
+    url.bezelStyle = NSTextFieldRoundedBezel;
+    url.delegate = self;
+    [url setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [_fields addObject:url];
     NSButton *remove = [NSButton buttonWithImage:[NSImage imageWithSystemSymbolName:@"minus.circle.fill" accessibilityDescription:@"Remove Route"]
                                           target:self action:@selector(remove:)];
     remove.bordered = NO;
     remove.contentTintColor = NSColor.secondaryLabelColor;
-    remove.tag = index;
-    remove.enabled = DPAirTrafficControl.on;
-    NSStackView *row = [NSStackView stackViewWithViews:@[ domain, DPNote(@"opens in"), picker, remove ]];
-    row.spacing = 8;
-    [row setHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
-    return row;
+    NSPopUpButton *profile = DPProfilePicker(nil, route[@"profile"], self, @selector(pick:));
+    profile.controlSize = NSControlSizeRegular;
+    profile.font = [NSFont systemFontOfSize:13];
+    for (NSControl *control in @[ condition, url, remove, profile ]) {
+        control.tag = index;
+        control.enabled = on;
+    }
+    condition.target = self;
+    condition.action = @selector(condition:);
+    return @[ @[ DPRouteLabel(@"link", @"URL"), condition, url, remove ],
+              @[ DPRouteLabel(@"arrow.turn.down.right", @"Open in"), profile, NSGridCell.emptyContentView, NSGridCell.emptyContentView ] ];
 }
 
 - (void)reload {
@@ -50,33 +74,39 @@
         [self removeArrangedSubview:view];
         [view removeFromSuperview];
     }
+    _fields = [NSMutableArray new];
     BOOL ready = DPProfiles().count >= 2;
-    NSTextField *lead = DPNote(ready ? @"A routed site opens in its profile wherever its link is clicked, switching to it if it has to. "
-                                        "A route for example.com covers its subdomains too."
+    NSTextField *lead = DPNote(ready ? @"A routed site opens in its profile wherever its link is clicked, switching to it if it has to."
                                      : @"Air Traffic Control needs two or more profiles. Add them in Settings › Profiles.");
     NSButton *add = [NSButton buttonWithTitle:@"New Route" target:self action:@selector(add)];
-    add.controlSize = NSControlSizeSmall;
-    add.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
     add.hidden = !ready;
     add.enabled = DPAirTrafficControl.on;
     NSStackView *head = [NSStackView stackViewWithViews:@[ lead, add ]];
     head.spacing = 12;
     head.alignment = NSLayoutAttributeCenterY;
     [self addRow:head];
-    if (!ready) return;
-    [DPRoutes() enumerateObjectsUsingBlock:^(NSDictionary *route, NSUInteger index, BOOL *_) {
-        NSBox *line = [NSBox new];
-        line.boxType = NSBoxSeparator;
-        [self addRow:line];
-        [self addRow:[self rowForRoute:route at:index]];
+    NSArray<NSDictionary *> *routes = DPRoutes();
+    if (!ready || !routes.count) return;
+    NSMutableArray<NSArray<NSView *> *> *lines = [NSMutableArray new];
+    [routes enumerateObjectsUsingBlock:^(NSDictionary *route, NSUInteger index, BOOL *_) {
+        [lines addObjectsFromArray:[self linesForRoute:route at:index]];
     }];
+    NSGridView *grid = [NSGridView gridViewWithViews:lines];
+    grid.rowSpacing = 8;
+    grid.columnSpacing = 8;
+    grid.rowAlignment = NSGridRowAlignmentFirstBaseline;
+    [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
+    for (NSUInteger index = 0; index < routes.count; index++) {
+        [[grid rowAtIndex:index * 2 + 1] mergeCellsInRange:NSMakeRange(1, 2)];  // The profile spans the condition and the URL.
+        if (index) [grid rowAtIndex:index * 2].topPadding = 12;
+    }
+    [self addRow:grid];
 }
 
 - (void)add {
-    DPSetRoutes([DPRoutes() arrayByAddingObject:@{ @"domain" : @"", @"profile" : DPProfiles().firstObject[@"id"] ?: @"" }]);
+    DPSetRoutes([DPRoutes() arrayByAddingObject:@{ @"url" : @"", @"match" : DPMatchContains, @"profile" : DPProfiles().firstObject[@"id"] ?: @"" }]);
     [self reload];
-    NSView *last = self.arrangedSubviews.lastObject;
-    [self.window makeFirstResponder:[last isKindOfClass:NSStackView.class] ? ((NSStackView *)last).arrangedSubviews.firstObject : nil];
+    [self.window makeFirstResponder:_fields.lastObject];
 }
 
 - (void)change:(NSUInteger)index with:(void (^)(NSMutableDictionary *route))change {
@@ -88,17 +118,22 @@
     DPSetRoutes(routes);
 }
 
-// Saved as typed, so nothing is lost when the window closes, and tidied into a host once editing ends.
+// Saved as typed, so nothing is lost when the window closes, and tidied once editing ends.
 - (void)controlTextDidChange:(NSNotification *)note {
     NSTextField *field = note.object;
-    [self change:field.tag with:^(NSMutableDictionary *route) { route[@"domain"] = field.stringValue; }];
+    [self change:field.tag with:^(NSMutableDictionary *route) { route[@"url"] = field.stringValue; }];
 }
 
 - (void)controlTextDidEndEditing:(NSNotification *)note {
     NSTextField *field = note.object;
-    NSString *domain = DPRouteDomain(field.stringValue);
-    field.stringValue = domain;
-    [self change:field.tag with:^(NSMutableDictionary *route) { route[@"domain"] = domain; }];
+    NSString *url = DPRouteURL(field.stringValue);
+    field.stringValue = url;
+    [self change:field.tag with:^(NSMutableDictionary *route) { route[@"url"] = url; }];
+}
+
+- (void)condition:(NSPopUpButton *)menu {
+    NSString *match = menu.selectedItem.representedObject;
+    [self change:menu.tag with:^(NSMutableDictionary *route) { route[@"match"] = match; }];
 }
 
 - (void)pick:(NSPopUpButton *)picker {

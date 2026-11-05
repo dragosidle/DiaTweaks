@@ -3,14 +3,15 @@
 
 extern DPPatch DPAirTrafficControl, DPAirTrafficInsideDia;
 
-// Routes.m: saved in com.diapatches as airTrafficRoutes, [{domain, profile}], and airTrafficDefault, a profile ID or "" for
-// whichever profile is in front.
+// Routes.m: saved in com.diapatches as airTrafficRoutes, [{url, match, profile}], and airTrafficDefault, a profile ID or ""
+// for whichever profile is in front.
+static NSString *const DPMatchContains = @"contains", *const DPMatchEquals = @"equals";
 NSArray<NSDictionary *> *DPRoutes(void);
 void DPSetRoutes(NSArray<NSDictionary *> *routes);
 NSString *DPDefaultProfile(void);
 void DPSetDefaultProfile(NSString *profileID);
-NSString *DPRouteDomain(NSString *text);  // What was typed, as a host: "https://www.Example.com/x" is "example.com".
-NSString *DPRoutedProfile(NSURL *url);    // The profile a route sends `url` to, or nil. A route covers its subdomains.
+NSString *DPRouteURL(NSString *text);    // What was typed, tidied: "https://www.example.com/x " is "example.com/x".
+NSString *DPRoutedProfile(NSURL *url);  // The profile the first matching route sends `url` to, or nil.
 
 @interface NSObject (DPAirSwiftFields)
 - (id)safeSwiftValueForKey:(NSString *)key;  // AXCoreUtilities: reads Swift properties the Obj-C runtime hides.
