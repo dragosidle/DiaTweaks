@@ -1,6 +1,7 @@
 #import "Patches/Peek/Peek.h"
 
-static NSString *const DPPeekDarknessKey = @"peekDarkness", *const DPPeekSpeedKey = @"peekSpeed", *const DPPeekGenieKey = @"peekGenie";
+static NSString *const DPPeekDarknessKey = @"peekDarkness", *const DPPeekSpeedKey = @"peekSpeed", *const DPPeekGenieKey = @"peekGenie",
+                      *const DPPeekNewTabsKey = @"peekNewTabs";
 
 static NSUserDefaults *DPSettings(void) {
     static NSUserDefaults *settings;
@@ -12,12 +13,13 @@ static NSUserDefaults *DPSettings(void) {
 static double DPPeekTuned(NSString *key) {
     id value = [DPSettings() objectForKey:key];
     if (value) return [value doubleValue];
-    return [@{ DPPeekDarknessKey : @0.45, DPPeekSpeedKey : @0.9, DPPeekGenieKey : @YES }[key] doubleValue];
+    return [@{ DPPeekDarknessKey : @0.45, DPPeekSpeedKey : @0.9, DPPeekGenieKey : @YES, DPPeekNewTabsKey : @NO }[key] doubleValue];
 }
 
 double DPPeekDarkness(void) { return DPPeekTuned(DPPeekDarknessKey); }
 double DPPeekResponse(void) { return 0.24 / MAX(0.1, DPPeekTuned(DPPeekSpeedKey)); }  // iOS's response at 100%.
 BOOL DPPeekGenie(void) { return DPPeekTuned(DPPeekGenieKey) != 0; }
+BOOL DPPeekNewTabs(void) { return DPPeekTuned(DPPeekNewTabsKey) != 0; }
 
 @interface DPPeekTuneRow : NSStackView <NSTextFieldDelegate>
 @property (copy) NSString *key;
@@ -94,5 +96,6 @@ NSArray<NSView *> *DPPeekSettingsRows(void) {
         DPPeekSlider(@"Darken the page behind", DPPeekDarknessKey, 0, 100, 100, @"%"),
         DPPeekSlider(@"Speed", DPPeekSpeedKey, 25, 300, 100, @"%"),
         DPPeekSwitch(@"Genie effect", DPPeekGenieKey),
+        DPPeekSwitch(@"Also peek links that open a new tab", DPPeekNewTabsKey),
     ];
 }

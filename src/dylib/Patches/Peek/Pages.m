@@ -71,11 +71,16 @@ void DPPeekLoad(id page, NSURL *url) {
     if (url && [navigation respondsToSelector:load]) ((id (*)(id, SEL, NSURL *, NSURL *))objc_msgSend)(navigation, load, url, nil);
 }
 
+static BOOL DPPeekGivingNow;
+BOOL DPPeekGiving(void) { return DPPeekGivingNow; }
+
 static BOOL DPPeekGive(id page, id delegate, id source, NSURL *url, DPPeekExit exit) {
     SEL adopt = @selector(webContents:didCreateNewWebContent:targetURL:disposition:);
     if (!page || !source || ![url isKindOfClass:NSURL.class] || ![delegate respondsToSelector:adopt]) return NO;
     NSInteger disposition = exit == DPPeekSplit ? DPSplitView : DPForegroundTab;
+    DPPeekGivingNow = YES;
     ((void (*)(id, SEL, id, id, NSURL *, NSInteger))objc_msgSend)(delegate, adopt, source, page, url, disposition);
+    DPPeekGivingNow = NO;
     return YES;
 }
 

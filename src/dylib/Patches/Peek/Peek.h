@@ -52,11 +52,13 @@ void DPPeekHideTabBadge(DPPeekCard *peek);
 double DPPeekDarkness(void);
 double DPPeekResponse(void);
 BOOL DPPeekGenie(void);
+BOOL DPPeekNewTabs(void);  // Plain clicks on links that open a new tab peek too.
 NSArray<NSView *> *DPPeekSettingsRows(void);
 
 void DPPeekInstallPages(void);
 BOOL DPPeekCanOpen(id source);
 BOOL DPPeekShows(id page);
+BOOL DPPeekGiving(void);  // Peek is handing its page to Dia, through the hook that catches new tabs.
 void DPPeekLoad(id page, NSURL *url);
 void DPPeekOpen(NSWindow *window, NSURL *url, NSPoint origin, id delegate, id source);
 void DPPeekWarm(NSWindow *window, id source, NSURL *url);
