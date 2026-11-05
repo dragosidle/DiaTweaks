@@ -13,7 +13,7 @@ static BOOL DPChooseInMenu(NSString *profileID) {
     NSString *name = DPProfileName(profileID);
     NSMenu *menu = name ? DPProfileMenuHolding(name) : nil;
     if (!menu) return NO;
-    DPTrace(@"choosing \"%@\" in the %@ menu", name, menu.title);
+    DPTrace(@"choosing \"%@\" in Dia's profile menu", name);
     [menu performActionForItemAtIndex:[menu indexOfItemWithTitle:name]];
     return YES;
 }
