@@ -1,8 +1,9 @@
 #import "Patches/Peek/Peek.h"
+#import "Patches/AirTrafficControl/AirTrafficControl.h"
 #import <objc/message.h>
 
 static NSMapTable *DPPeekFactories;
-static NSMapTable<NSWindow *, id> *DPPeekBrowsers;
+static NSMapTable<NSWindow *, NSHashTable *> *DPPeekBrowsers;  // A window → its browsers, one for each profile.
 static __weak id DPPeekLastFactory;
 static id DPPeekWarmPage;
 static NSView *DPPeekWarmView;
@@ -28,7 +29,10 @@ static id DPBrowser_create(id self, SEL _cmd, id configuration) {
 
 static void DPBrowser_setWindow(id self, SEL _cmd, NSWindow *window) {
     DPCallOriginal(DPBrowser_setWindow, self, window);
-    if (window) [DPPeekBrowsers setObject:self forKey:window];
+    if (!window) return;
+    NSHashTable *browsers = [DPPeekBrowsers objectForKey:window] ?: [NSHashTable weakObjectsHashTable];
+    [browsers addObject:self];
+    [DPPeekBrowsers setObject:browsers forKey:window];
 }
 
 static void DPPage_attach(id self, SEL _cmd, NSView *host) {
@@ -51,10 +55,40 @@ static void DPPage_close(id self, SEL _cmd) {
     DPCallOriginal(DPPage_close, self);
 }
 
-// Restored tabs' pages skip the hooked createWebContents, so they fall back to the window's browser.
+static NSString *DPPeekProfileName(id browser) {
+    id context = nil, name = nil;
+    @try {
+        if ([browser respondsToSelector:@selector(context)]) context = [browser valueForKey:@"context"];
+        if ([context respondsToSelector:@selector(userVisibleName)]) name = [context valueForKey:@"userVisibleName"];
+    } @catch (NSException *e) {}
+    return [name isKindOfClass:NSString.class] ? name : nil;
+}
+
+// A browser's context is a new object on every call, so its profile is told by name. Profiles that share a name can't be
+// told apart, and neither can two browsers of one window with the same name: both give nil.
+id DPPeekBrowserFor(NSWindow *window, NSString *profileID) {
+    NSArray<NSDictionary *> *profiles = DPProfiles();
+    NSString *name = nil;
+    for (NSDictionary *profile in profiles) if ([profile[@"id"] isEqualToString:profileID]) name = profile[@"name"];
+    if (!window || !name) return nil;
+    for (NSDictionary *profile in profiles)
+        if (![profile[@"id"] isEqualToString:profileID] && [profile[@"name"] isEqualToString:name]) return nil;
+    id found = nil;
+    for (id browser in [DPPeekBrowsers objectForKey:window]) {
+        if (![DPPeekProfileName(browser) isEqualToString:name]) continue;
+        if (found) return nil;
+        found = browser;
+    }
+    return found;
+}
+
+// The page's own factory keeps the card's page in its profile. Restored tabs' pages skip the hooked createWebContents, so
+// they fall back to the browser for the profile the window shows, then to any browser of the window.
 static id DPPeekFactoryFor(id source, NSWindow *window) {
     if (!source) return nil;
-    return [DPPeekFactories objectForKey:source] ?: (window ? [DPPeekBrowsers objectForKey:window] : nil) ?: DPPeekLastFactory;
+    id factory = [DPPeekFactories objectForKey:source];
+    if (!factory && window) factory = DPPeekBrowserFor(window, DPWindowProfile(window)) ?: [[DPPeekBrowsers objectForKey:window] anyObject];
+    return factory ?: DPPeekLastFactory;
 }
 
 BOOL DPPeekCanOpen(id source) { return DPPeekFactoryFor(source, NSApp.keyWindow) != nil; }
@@ -216,7 +250,7 @@ void DPPeekOpen(NSWindow *window, NSURL *url, NSPoint origin, id delegate, id so
 
 void DPPeekInstallPages(void) {
     DPPeekFactories = [NSMapTable weakToWeakObjectsMapTable];
-    DPPeekBrowsers = [NSMapTable weakToWeakObjectsMapTable];
+    DPPeekBrowsers = [NSMapTable weakToStrongObjectsMapTable];
     DPHook(DPDiaBrowser, @selector(setWindow:), (IMP)DPBrowser_setWindow);
     DPHook(DPDiaBrowserContext, @selector(createWebContents:), (IMP)DPContext_create);
     DPHook(DPDiaBrowser, @selector(createWebContents:), (IMP)DPBrowser_create);

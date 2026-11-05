@@ -57,6 +57,7 @@ BOOL DPPeekNewTabs(void);  // Plain clicks on links that open a new tab peek too
 NSArray<NSView *> *DPPeekSettingsRows(void);
 
 void DPPeekInstallPages(void);
+id DPPeekBrowserFor(NSWindow *window, NSString *profileID);  // The window's browser for an Air Traffic Control profile, or nil if it can't tell which.
 BOOL DPPeekCanOpen(id source);
 BOOL DPPeekShows(id page);
 BOOL DPPeekGiving(void);  // Peek is handing its page to Dia, through the hook that catches new tabs.
