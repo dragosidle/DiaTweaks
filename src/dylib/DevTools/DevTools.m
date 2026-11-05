@@ -39,6 +39,7 @@ static void DPCopyViewTree(void) {
 //     com.diapatches.dev.methods, object a class name  writes its methods, and those of a live one's delegate and data
 //                             source, to methods.txt beside the dylib.
 //     com.diapatches.dev.dump                          writes every window's view tree to views.txt beside the dylib.
+//     com.diapatches.dev.probe, object class names    writes their methods, fields and the menus to probe.txt (Probe.m).
 static void DPListenForScripts(void) {
     NSDistributedNotificationCenter *center = NSDistributedNotificationCenter.defaultCenter;
     [center addObserverForName:@"com.diapatches.dev.set" object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
@@ -94,6 +95,7 @@ static void DPListenForScripts(void) {
 void DPInstallDevTools(void) {
     if (![[[NSUserDefaults alloc] initWithSuiteName:@"com.diapatches"] boolForKey:@"devTools"]) return;
     DPListenForScripts();
+    DPListenForProbes();
     DPTraceLayoutLoops();
     DPOnLaunch(^{
         DPAddMenuItem(@"Help", @"DiaPatches: Copy View Tree", ^{ DPCopyViewTree(); });
