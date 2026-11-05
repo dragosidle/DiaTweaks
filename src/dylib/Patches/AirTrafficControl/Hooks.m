@@ -5,6 +5,8 @@
 
 enum { DPIgnoreAction = 0 };  // ArcWebContentsNavigationDisposition
 
+static NSMapTable *DPPageByNavigation;  // A page's navigation controller → the page, for the tab a typed address was meant for.
+
 static void DPApp_openURLs(id self, SEL _cmd, NSApplication *app, NSArray<NSURL *> *urls) {
     DPTrace(@"from outside: %@", urls);
     NSMutableArray<NSURL *> *rest = [NSMutableArray new];
@@ -40,12 +42,20 @@ static void DPWebContent_didCreate(id self, SEL _cmd, id webContents, id newWebC
     dispatch_async(dispatch_get_main_queue(), ^{ DPOpenInProfile(url, profile); });
 }
 
-// An address typed into a tab, or anything else Dia loads into a page itself. The tab keeps its page; the routed one opens elsewhere.
+// An address typed into a tab, or anything else Dia loads into a page itself. The routed one opens elsewhere, and the
+// tab Dia made for it, still a blank new tab, closes once that's under way. A tab already on a page keeps it.
 static id DPNavigation_load(id self, SEL _cmd, NSURL *url, NSURL *origin) {
     DPTrace(@"load %@ from %@", url, origin);
     NSString *profile = DPDestination(url, nil, NO);
     if (!profile) return DPCallOriginal(DPNavigation_load, self, url, origin);
+    id page = [DPPageByNavigation objectForKey:self];
+    NSURL *current = DPPageURL(page);
     dispatch_async(dispatch_get_main_queue(), ^{ DPOpenInProfile(url, profile); });
+    if (page && (!current || [current.scheme isEqualToString:@"dia"]) && [page respondsToSelector:@selector(close)])
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            DPTrace(@"closing the blank tab at %@", current);
+            [page performSelector:@selector(close)];
+        });
     return nil;
 }
 
@@ -54,6 +64,8 @@ static void DPHookNavigation(id webContents) {
     id navigation = nil;
     @try { navigation = [webContents valueForKey:@"navigationController"]; } @catch (NSException *e) {}
     if (!navigation) return DPTrace(@"page %@ has no navigationController", webContents);
+    if (!DPPageByNavigation) DPPageByNavigation = [NSMapTable weakToWeakObjectsMapTable];
+    [DPPageByNavigation setObject:webContents forKey:navigation];
     DPHookClass(object_getClass(navigation), @selector(load:initiatorOrigin:), (IMP)DPNavigation_load);
 }
 

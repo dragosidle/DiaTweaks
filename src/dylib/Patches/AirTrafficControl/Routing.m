@@ -88,5 +88,8 @@ void DPOpenInProfile(NSURL *url, NSString *profileID) {
         if (!switched) os_log(OS_LOG_DEFAULT, "DiaPatches: couldn't switch to profile %{public}@ for %{public}@", profileID, url);
         DPTrace(@"%@, handing %@ to Dia", switched ? @"switched" : @"not switched", url);
         DPHandOver(url);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            DPTrace(@"half a second on, the window shows %@ and the key window is \"%@\"", DPWindowProfile(window) ?: @"no profile", NSApp.keyWindow.title);
+        });
     });
 }

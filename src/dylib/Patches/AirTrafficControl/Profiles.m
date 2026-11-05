@@ -73,12 +73,14 @@ void DPSwitchToProfile(NSWindow *window, NSString *profileID, void (^done)(BOOL 
     for (id key in items) if ([[key description] isEqualToString:profileID]) item = items[key];
     if (!item) return done(NO);
     DPClick(item);
-    // The switch animates, so the window is watched until it shows the profile, for up to two seconds.
+    // The switch animates and the switcher reports it late, so the window is watched until it shows the profile, for up
+    // to four seconds, then given a moment to settle.
     __block int polls = 0;
     [NSTimer scheduledTimerWithTimeInterval:0.05 repeats:YES block:^(NSTimer *timer) {
         BOOL switched = [DPWindowProfile(window) isEqualToString:profileID];
-        if (!switched && ++polls < 40) return;
+        if (!switched && ++polls < 80) return;
         [timer invalidate];
-        done(switched);
+        DPTrace(@"the switcher showed %@ after %d ms", switched ? @"the profile" : @"no change", polls * 50);
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ done(switched); });
     }];
 }
