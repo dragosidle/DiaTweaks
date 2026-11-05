@@ -41,6 +41,16 @@ static void DPPage_attach(id self, SEL _cmd, NSView *host) {
     DPCallOriginal(DPPage_attach, self, host);
 }
 
+// A page closed under the card, by the site's window.close() or by Air Traffic Control sending a redirect to another
+// profile, takes the card down first. The card closes it once it's gone, when no card shows it any more.
+static void DPPage_close(id self, SEL _cmd) {
+    for (NSWindow *window in NSApp.windows) {
+        DPPeekCard *peek = DPPeekCardIn(window);
+        if (peek.page == self) return [peek close:DPPeekClose];
+    }
+    DPCallOriginal(DPPage_close, self);
+}
+
 // Restored tabs' pages skip the hooked createWebContents, so they fall back to the window's browser.
 static id DPPeekFactoryFor(id source, NSWindow *window) {
     if (!source) return nil;
@@ -206,6 +216,7 @@ void DPPeekInstallPages(void) {
     DPHook(DPDiaBrowserContext, @selector(createWebContents:), (IMP)DPContext_create);
     DPHook(DPDiaBrowser, @selector(createWebContents:), (IMP)DPBrowser_create);
     DPHook(DPDiaWebContents, @selector(attachToPaneHostView:), (IMP)DPPage_attach);
+    DPHook(DPDiaWebContents, @selector(close), (IMP)DPPage_close);
     [NSNotificationCenter.defaultCenter addObserverForName:NSWindowWillCloseNotification object:nil queue:nil usingBlock:^(NSNotification *note) {
         [DPPeekCardIn(note.object) close:DPPeekClose];
     }];
