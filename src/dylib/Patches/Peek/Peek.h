@@ -23,6 +23,7 @@ enum { DPIgnoreAction = 0, DPCurrentTab = 1, DPForegroundTab = 2, DPBackgroundTa
 @property (nonatomic) CGFloat grown;  // 0 at rest, 1 filling the page area.
 @property (nonatomic) BOOL closing;
 @property (nonatomic) NSInteger paneMoves;
+@property (nonatomic, copy) NSString *profile;  // Air Traffic Control's ID of the profile the page is from, when it isn't the window's.
 - (NSRect)cardFrame;
 - (void)close:(DPPeekExit)exit;
 - (void)handOver;
@@ -39,7 +40,7 @@ enum { DPIgnoreAction = 0, DPCurrentTab = 1, DPForegroundTab = 2, DPBackgroundTa
 @end
 
 DPPeekCard *DPPeekCardIn(NSWindow *window);
-DPPeekCard *DPPeekShowCard(NSWindow *window, id<DPPeekPage> page, NSView *warmHost, NSRect screenLink);
+DPPeekCard *DPPeekShowCard(NSWindow *window, id<DPPeekPage> page, NSView *warmHost, NSRect screenLink, NSString *profile);
 NSView *DPPeekWarmHost(NSWindow *window, id<DPPeekPage> page);
 
 NSView *DPPeekControls(id target, SEL action);

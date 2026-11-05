@@ -174,9 +174,9 @@ static void DPPeekOpenFrom(NSWindow *window, NSURL *url, NSRect link, id delegat
         return;
     }
     __block DPPeekCard *peek = nil;
-    id page = warmPage ?: DPPeekMakePage(window, source, ^(id page) { peek = DPPeekShowCard(window, page, nil, link); });
+    id page = warmPage ?: DPPeekMakePage(window, source, ^(id page) { peek = DPPeekShowCard(window, page, nil, link, nil); });
     if (!page) return;
-    if (warmPage) peek = DPPeekShowCard(window, page, warmHost, link);
+    if (warmPage) peek = DPPeekShowCard(window, page, warmHost, link, nil);
     else DPPeekLoad(page, url);
     if (!peek) {
         DPPeekDetach(page, warmHost);

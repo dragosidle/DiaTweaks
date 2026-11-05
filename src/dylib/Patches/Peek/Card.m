@@ -142,7 +142,7 @@ NSView *DPPeekWarmHost(NSWindow *window, id<DPPeekPage> page) {
     return host;
 }
 
-DPPeekCard *DPPeekShowCard(NSWindow *window, id<DPPeekPage> page, NSView *warmHost, NSRect screenLink) {
+DPPeekCard *DPPeekShowCard(NSWindow *window, id<DPPeekPage> page, NSView *warmHost, NSRect screenLink, NSString *profile) {
     NSView *host = warmHost ?: [page createPaneHostView], *pane = DPPeekPane(window);
     if (!window || !host || DPPeekCardIn(window)) return nil;
     NSView *holder = DPPeekHolder(window, pane);
@@ -150,6 +150,7 @@ DPPeekCard *DPPeekShowCard(NSWindow *window, id<DPPeekPage> page, NSView *warmHo
     peek.autoresizingMask = pane ? NSViewNotSizable : NSViewWidthSizable | NSViewHeightSizable;
     peek.pane = pane;
     peek.page = page;
+    peek.profile = profile;
     peek.host = host;
     peek.dim = DPLayerView();
     peek.dim.layer.backgroundColor = [NSColor colorWithWhite:0 alpha:DPPeekDarkness()].CGColor;
