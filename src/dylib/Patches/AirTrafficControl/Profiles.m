@@ -14,10 +14,31 @@ NSDictionary *DPSwitcherItems(NSView *switcher) {
     return [items isKindOfClass:NSDictionary.class] ? items : nil;
 }
 
-// The sidebar's items carry the profile's name as itemTitle; anything else falls back to what accessibility says, then the ID.
-static NSString *DPNameOf(NSView *item, NSString *profileID) {
+// Dia's menu bar lists every profile, in the switcher's order, in a submenu of the Window menu (titled after the front
+// profile, with Manage Profiles… under them): Dragos ⌃1, Work ⌃2, … The last one also answers to ⌃9.
+NSMenu *DPProfileMenu(void) {
+    for (NSMenuItem *top in NSApp.mainMenu.itemArray)
+        for (NSMenuItem *item in top.submenu.itemArray) {
+            NSMenu *menu = item.submenu;
+            for (NSMenuItem *entry in menu.itemArray)
+                if ([entry.keyEquivalent isEqualToString:@"1"] && entry.keyEquivalentModifierMask == NSEventModifierFlagControl) return menu;
+        }
+    return nil;
+}
+
+NSMenuItem *DPProfileMenuItem(NSUInteger index) {
+    NSString *key = [NSString stringWithFormat:@"%lu", (unsigned long)index + 1];
+    for (NSMenuItem *entry in DPProfileMenu().itemArray)
+        if ([entry.keyEquivalent isEqualToString:key] && entry.keyEquivalentModifierMask == NSEventModifierFlagControl) return entry;
+    return nil;
+}
+
+// The sidebar's items carry the profile's name as itemTitle. The tab strip's dots carry nothing, so their names come from
+// the menu by position, then from what accessibility says, then the ID.
+static NSString *DPNameOf(NSView *item, NSString *profileID, NSUInteger index) {
     id title = [item safeSwiftValueForKey:@"itemTitle"];
     NSString *name = [title isKindOfClass:NSString.class] ? title : nil;
+    if (!name.length) name = DPProfileMenuItem(index).title;
     if (!name.length) name = item.accessibilityLabel.length ? item.accessibilityLabel : item.toolTip;
     return name.length ? name : profileID;
 }
@@ -30,7 +51,8 @@ NSArray<NSDictionary *> *DPProfiles(void) {
             return [@(NSMinX(((NSView *)items[a]).frame)) compare:@(NSMinX(((NSView *)items[b]).frame))];
         }];
         NSMutableArray<NSDictionary *> *profiles = [NSMutableArray new];
-        for (id key in keys) [profiles addObject:@{ @"id" : [key description], @"name" : DPNameOf(items[key], [key description]) }];
+        for (id key in keys)
+            [profiles addObject:@{ @"id" : [key description], @"name" : DPNameOf(items[key], [key description], profiles.count) }];
         return profiles;
     }
     return @[];

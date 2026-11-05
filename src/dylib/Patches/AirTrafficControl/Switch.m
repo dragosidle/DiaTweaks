@@ -1,20 +1,20 @@
-// Switching a window to a profile, the way Dia does it: its Window menu lists every profile, with ⌃1, ⌃2 and so on, and
-// the Tabs menu has them under Switch Profile. Without such an item, the sidebar's switcher gets the click it handles itself.
+// Switching a window to a profile, the way Dia does it: its Window menu lists every profile, with ⌃1, ⌃2 and so on.
+// Without such an item, the sidebar's switcher gets the click it handles itself.
 #import "Patches/AirTrafficControl/AirTrafficControl.h"
 
-static NSMenu *DPProfileMenuHolding(NSString *name) {
-    for (NSString *title in @[ @"Window", @"Tabs" ])
-        for (NSMenuItem *item in [NSApp.mainMenu itemWithTitle:title].submenu.itemArray)
-            if (item.submenu && [item.submenu indexOfItemWithTitle:name] >= 0) return item.submenu;
-    return nil;
-}
-
+// The profile's item is found by its place in the switcher, not its name: the tab strip's dots have no names, and two
+// profiles can share one.
 static BOOL DPChooseInMenu(NSString *profileID) {
-    NSString *name = DPProfileName(profileID);
-    NSMenu *menu = name ? DPProfileMenuHolding(name) : nil;
-    if (!menu) return NO;
-    DPTrace(@"choosing \"%@\" in Dia's profile menu", name);
-    [menu performActionForItemAtIndex:[menu indexOfItemWithTitle:name]];
+    NSArray<NSDictionary *> *profiles = DPProfiles();
+    NSUInteger index = [profiles indexOfObjectPassingTest:^BOOL(NSDictionary *profile, NSUInteger i, BOOL *stop) {
+        return [profile[@"id"] isEqualToString:profileID];
+    }];
+    NSMenuItem *item = index == NSNotFound ? nil : DPProfileMenuItem(index);
+    if (!item) return NO;
+    NSMenu *parent = item.menu.supermenu;  // The submenu has no title of its own; its item in the Window menu does.
+    NSString *menuName = [parent itemAtIndex:[parent indexOfItemWithSubmenu:item.menu]].title;
+    DPTrace(@"choosing \"%@\" (⌃%lu) in Dia's \"%@\" menu", item.title, (unsigned long)index + 1, menuName);
+    [item.menu performActionForItemAtIndex:[item.menu indexOfItem:item]];
     return YES;
 }
 

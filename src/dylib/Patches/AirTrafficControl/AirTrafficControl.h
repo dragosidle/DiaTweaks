@@ -19,6 +19,8 @@ NSString *DPRoutedProfile(NSURL *url);    // The profile a route sends `url` to,
 // Profiles.m: Dia's profiles, read from the switcher in each window, the sidebar's or the dots in the tab strip.
 NSArray<NSDictionary *> *DPProfiles(void);    // {id, name}, left to right.
 NSString *DPProfileName(NSString *profileID);
+NSMenu *DPProfileMenu(void);                    // The Window menu's list of profiles, ⌃1, ⌃2…, in either tab layout.
+NSMenuItem *DPProfileMenuItem(NSUInteger index);  // The item for the profile at `index` in DPProfiles().
 NSView *DPSwitcherIn(NSWindow *window);
 NSDictionary *DPSwitcherItems(NSView *switcher);  // Swift SpaceID → the item view for it.
 NSString *DPWindowProfile(NSWindow *window);  // The profile a browser window shows, or nil for any other window.
