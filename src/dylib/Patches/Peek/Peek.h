@@ -14,7 +14,7 @@ enum { DPIgnoreAction = 0, DPCurrentTab = 1, DPForegroundTab = 2, DPBackgroundTa
 @end
 
 @interface DPPeekCard : NSView
-@property (nonatomic, strong) NSView *dim, *card, *shade, *clip, *host, *controls, *tabBadge;
+@property (nonatomic, strong) NSView *dim, *card, *shade, *clip, *host, *controls, *tabBadge, *profileLabel;
 @property (nonatomic, strong) id<DPPeekPage> page;
 @property (nonatomic, weak) id sourceDelegate, source;
 @property (nonatomic, weak) NSView *pane;
@@ -43,7 +43,8 @@ DPPeekCard *DPPeekCardIn(NSWindow *window);
 DPPeekCard *DPPeekShowCard(NSWindow *window, id<DPPeekPage> page, NSView *warmHost, NSRect screenLink, NSString *profile);
 NSView *DPPeekWarmHost(NSWindow *window, id<DPPeekPage> page);
 
-NSView *DPPeekControls(id target, SEL action);
+NSView *DPPeekControls(id target, SEL action, BOOL splittable);
+NSView *DPPeekProfileLabel(NSString *name, CGFloat maxWidth);  // "Opened in <name>" in the hints' look, shown at once; clicks pass through.
 void DPPeekLayoutHints(NSView *controls, CGFloat availableRight);
 CATransform3D DPPeekScaled(NSView *view, CGFloat scale);
 

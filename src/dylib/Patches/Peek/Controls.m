@@ -57,6 +57,7 @@ CATransform3D DPPeekScaled(NSView *view, CGFloat scale) {
 }
 
 - (void)mouseEntered:(NSEvent *)event {
+    if (self.hidden) return;
     [self grow:YES];
     [self performSelector:@selector(showHint) withObject:nil afterDelay:1.0];
 }
@@ -175,9 +176,28 @@ static NSView *DPPeekMakeHint(NSString *text, NSArray<NSString *> *keys, CGFloat
     return pill;
 }
 
+// Lets clicks through to what's under it.
+@interface DPPeekLabel : NSView
+@end
+
+@implementation DPPeekLabel
+- (NSView *)hitTest:(NSPoint)point { return nil; }
+@end
+
+// A hint's pill that doesn't wait for a hover. The text is a static text field, so it reads aloud as is.
+NSView *DPPeekProfileLabel(NSString *name, CGFloat maxWidth) {
+    NSView *pill = DPPeekMakeHint([@"Opened in " stringByAppendingString:name], nil, maxWidth - 2 * DPHintPadX);
+    pill.alphaValue = 1;
+    NSView *label = [[DPPeekLabel alloc] initWithFrame:pill.frame];
+    label.wantsLayer = YES;
+    pill.frame = label.bounds;
+    [label addSubview:pill];
+    return label;
+}
+
 void DPPeekLayoutHints(NSView *controls, CGFloat availableRight) {
     for (DPPeekButton *button in [controls.subviews copy]) {
-        if (![button isKindOfClass:DPPeekButton.class]) continue;
+        if (![button isKindOfClass:DPPeekButton.class] || button.hidden) continue;
         [button.pill removeFromSuperview];
         NSView *pill = DPPeekMakeHint(button.hintText, button.hintKeys, MAX(40, availableRight - DPHintRightGap - 2 * DPHintPadX));
         pill.frame = NSMakeRect(NSMaxX(button.frame) + DPHintRightGap, NSMidY(button.frame) - NSHeight(pill.frame) / 2, NSWidth(pill.frame), NSHeight(pill.frame));
@@ -187,7 +207,7 @@ void DPPeekLayoutHints(NSView *controls, CGFloat availableRight) {
 }
 
 // Not a stack view, which squeezed the circles out of shape.
-NSView *DPPeekControls(id target, SEL action) {
+NSView *DPPeekControls(id target, SEL action, BOOL splittable) {
     static const CGFloat side = 28, gap = 8;
     CGFloat scale = NSScreen.mainScreen.backingScaleFactor ?: 2;
     NSArray<NSDictionary *> *specs = @[
@@ -201,6 +221,7 @@ NSView *DPPeekControls(id target, SEL action) {
         NSDictionary *spec = specs[i];
         DPPeekButton *button = [DPPeekButton buttonWithTitle:@"" target:target action:action];
         button.tag = i;
+        button.hidden = i == DPPeekSplit && !splittable;  // A split can't hold pages from two profiles. The others keep their places.
         button.bordered = NO;
         button.accessibilityLabel = spec[@"a11y"];
         button.hintText = spec[@"hint"];

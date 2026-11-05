@@ -1,9 +1,35 @@
 #import "Patches/Peek/Peek.h"
+#import "Patches/AirTrafficControl/AirTrafficControl.h"
 #import <Carbon/Carbon.h>
 
-static const CGFloat DPPeekShadowRoom = 48;
+static const CGFloat DPPeekShadowRoom = 48, DPPeekLabelGap = 6, DPPeekLabelInset = 8, DPPeekLabelWidth = 260;
 
 static NSRect DPPeekCardRect(NSRect area) { return NSInsetRect(area, NSWidth(area) * 0.09, MAX(10, NSHeight(area) * 0.012)); }
+
+// "Opened in <name>" for a page from another profile, when Air Traffic Control lists that profile.
+static NSView *DPPeekLabelFor(DPPeekCard *peek) {
+    for (NSDictionary *profile in DPProfiles()) {
+        NSString *name = profile[@"name"];
+        if ([profile[@"id"] isEqualToString:peek.profile] && name.length)
+            return DPPeekProfileLabel(name, MIN(DPPeekLabelWidth, NSWidth(peek.cardFrame) - 2 * DPPeekLabelInset));
+    }
+    return nil;
+}
+
+// Just above the card's top-left corner, in the room the shadow has, or inside that corner when the page area ends too
+// close to the card's top. `card` is in the peek's flipped space, where its top is its min Y. The label sits in the card
+// view, which isn't flipped: there the clip's top is its max Y.
+static void DPPeekPlaceLabel(DPPeekCard *peek, NSRect card) {
+    NSView *label = peek.profileLabel;
+    if (!label) return;
+    NSRect clip = peek.clip.frame, frame = label.frame;
+    CGFloat above = NSHeight(frame) + DPPeekLabelGap;
+    if (above <= DPPeekShadowRoom && NSMinY(card) - NSMinY(peek.bounds) >= above + DPPeekLabelInset)
+        frame.origin = NSMakePoint(NSMinX(clip), NSMaxY(clip) + DPPeekLabelGap);
+    else
+        frame.origin = NSMakePoint(NSMinX(clip) + DPPeekLabelInset, NSMaxY(clip) - DPPeekLabelInset - NSHeight(frame));
+    label.frame = frame;
+}
 
 @implementation DPPeekCard
 
@@ -25,6 +51,7 @@ static NSRect DPPeekCardRect(NSRect area) { return NSInsetRect(area, NSWidth(are
     self.dim.frame = self.bounds;
     self.card.frame = NSInsetRect(card, -DPPeekShadowRoom, -DPPeekShadowRoom);
     self.clip.frame = self.shade.frame = NSInsetRect(self.card.bounds, DPPeekShadowRoom, DPPeekShadowRoom);
+    DPPeekPlaceLabel(self, card);
     self.controls.frame = (NSRect){{NSMaxX(card) + 12, NSMinY(card) + 4}, self.controls.frame.size};
     // Outside the sidebar slide's animation. The page redraws at its new size at once, so while the pane moves it covers
     // both the old and new card and is cropped, rather than leaving a blank strip. And the rebuilt hints would fade in.
@@ -69,6 +96,10 @@ static NSRect DPPeekCardRect(NSRect area) { return NSInsetRect(area, NSWidth(are
     if (self.paneObserver) [NSNotificationCenter.defaultCenter removeObserver:self.paneObserver];
     self.monitor = self.paneObserver = nil;
     self.controls.alphaValue = 0;
+    if (self.profileLabel) [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = 0.12;
+        self.profileLabel.animator.alphaValue = 0;
+    }];
     DPPeekHideTabBadge(self);
     return YES;
 }
@@ -168,10 +199,12 @@ DPPeekCard *DPPeekShowCard(NSWindow *window, id<DPPeekPage> page, NSView *warmHo
         view.layer.cornerRadius = 10;
         view.layer.cornerCurve = kCACornerCurveContinuous;
     }
-    peek.controls = DPPeekControls(peek, @selector(control:));
+    peek.controls = DPPeekControls(peek, @selector(control:), !profile);
+    peek.profileLabel = DPPeekLabelFor(peek);
     [peek.clip addSubview:host];
     [peek.card addSubview:peek.shade];
     [peek.card addSubview:peek.clip];
+    if (peek.profileLabel) [peek.card addSubview:peek.profileLabel];
     for (NSView *view in @[peek.dim, peek.card, peek.controls]) [peek addSubview:view];
     [holder addSubview:peek positioned:NSWindowAbove relativeTo:nil];
     [peek layoutSubtreeIfNeeded];
